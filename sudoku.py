@@ -4,8 +4,6 @@ Has the following features:
     - Self-generating board
     - Can save the current state of the game
     - Can load the last saved state of the game from the .txt file
-
-@author: Cid Ceradoy
 '''
 
 import random
@@ -50,22 +48,36 @@ def generateBoard():
 
     return grid
 
+def displayBoard(board, arrOfChoices):
+    # Output is colored
+    answerColor = "\033[92m"
+    answerColorDefault = "\033[0m"
 
-def displayBoard(board):
-    print("0 1 2   3 4 5   6 7 8 |   ")
-    print("- - - - - - - - - - - - -")
-    print(board[0][0], board[0][1], board[0][2], '|', board[0][3], board[0][4], board[0][5], '|', board[0][6], board[0][7], board[0][8], '|', 0)
-    print(board[1][0], board[1][1], board[1][2], '|', board[1][3], board[1][4], board[1][5], '|', board[1][6], board[1][7], board[1][8], '|', 1)
-    print(board[2][0], board[2][1], board[2][2], '|', board[2][3], board[2][4], board[2][5], '|', board[2][6], board[2][7], board[2][8], '|', 2)
-    print("- - - - - - - - - - - - -")
-    print(board[3][0], board[3][1], board[3][2], '|', board[3][3], board[3][4], board[3][5], '|', board[3][6], board[3][7], board[3][8], '|', 3)
-    print(board[4][0], board[4][1], board[4][2], '|', board[4][3], board[4][4], board[4][5], '|', board[4][6], board[4][7], board[4][8], '|', 4)
-    print(board[5][0], board[5][1], board[5][2], '|', board[5][3], board[5][4], board[5][5], '|', board[5][6], board[5][7], board[5][8], '|', 5)
-    print("- - - - - - - - - - - - -")
-    print(board[6][0], board[6][1], board[6][2], '|', board[6][3], board[6][4], board[6][5], '|', board[6][6], board[6][7], board[6][8], '|', 6)
-    print(board[7][0], board[7][1], board[7][2], '|', board[7][3], board[7][4], board[7][5], '|', board[7][6], board[7][7], board[7][8], '|', 7)
-    print(board[8][0], board[8][1], board[8][2], '|', board[8][3], board[8][4], board[8][5], '|', board[8][6], board[8][7], board[8][8], '|', 8)
-    print("\n")
+    print("0  1  2   3  4  5   6  7  8 |   ")
+    print("- - - - - - - - - - - - - - - - -")
+
+    for i in range(0, len(board)):
+        for j in range(0, len(board)):
+
+            if j in [2, 5]:
+                if (i, j) in arrOfChoices:
+                    print(f"{answerColor}{board[i][j]}{answerColorDefault} | ", end="")
+                else:
+                    print(board[i][j], "| ", end="")
+            elif j == 8:
+                if (i, j) in arrOfChoices:
+                    print(f"{answerColor}{board[i][j]}{answerColorDefault} |  {i}", end="")
+                else:
+                    print(board[i][j], "| ", i, end="")
+            else:
+                if (i, j) in arrOfChoices:
+                    print(f"{answerColor}{board[i][j]}{answerColorDefault}  ", end="")
+                else:
+                    print(board[i][j], " ", end="")
+        if i in [2, 5]:
+            print("\n- - - - - - - - - - - - - - - - -")
+        else:
+            print("\n")
 
 # Will cover 50 randomly selected cell by replacing it with "*"
 # Each points (row, col) will be stored in an array for checking purposes
@@ -148,7 +160,7 @@ def revealSolution(originalBoard):
 
 # Save the current state of the game
 # Without the [] for easy conversion to array later on
-def saveGame(dupBoard, origBoard):
+def saveGame(dupBoard, origBoard, arrOfChoices):
     # Save the duplicate board with "*"'s
     f = open("sudoku.txt", "w+")
     for i in range(0, 9):
@@ -171,6 +183,16 @@ def saveGame(dupBoard, origBoard):
         if (i != 8):
             f.write("\n")
 
+    # Save the current array of choices
+    f = open("arr-of-choices.txt", "w+")
+    for i in range(0, len(arrOfChoices)):
+        for j in range(0, len(arrOfChoices[i])):
+            f.write(str(arrOfChoices[i][j]))
+            if j != len(arrOfChoices[i])-1:
+                f.write(",")
+        if i != len(arrOfChoices)-1:
+            f.write(",")
+    f.close()
 
 # Load the game from the .txt file
 def loadGame():
@@ -202,7 +224,20 @@ def loadGame():
         for j in range(0, len(orig)):
             orig[i][j] = int(orig[i][j])
 
-    return (arr, orig)
+    #Will load the array of choices so the delete will still work
+    with open("arr-of-choices.txt") as f:
+        contents = f.read()
+    toInt = contents.split(",")
+
+    for i in range(0, len(toInt)):
+        toInt[i] = int(toInt[i])
+
+    choices = []
+    for i in range(0, len(toInt), 2):
+        tups = (toInt[i], toInt[i+1])
+        choices.append(tups)
+
+    return (arr, orig, choices)
     
 # Check if the file exists. If so, then check if it is empty
 def checkFile(filePath):
@@ -267,6 +302,10 @@ def main():
             # Deep copy
             dupBoard = copy.deepcopy(originalBoard)
             coverBoard(dupBoard)
+
+            # Return an array of possible (row, col) to be used for verification of
+            # validity of moves
+            arrOfChoices = getArrOfChoice(dupBoard)
         
         # If load game, set up the dupBoard through the load game
         elif (pregame == 2):
@@ -277,20 +316,16 @@ def main():
                 if checkFile("sudoku.txt") == False:
                     print("File is either empty or doesn't exists. Create a new game instead\n")
                     continue
-                dupBoard, originalBoard = loadGame()
+                dupBoard, originalBoard, arrOfChoices = loadGame()
 
         # Exit
         else:
             return
 
-        # Return an array of possible (row, col) to be used for verification of
-        # validity of moves
-        arrOfChoices = getArrOfChoice(dupBoard)
-
         # Game proper
         ingame = -1
         while (ingame != 4 and ingame != 3 and checkBoardFull(dupBoard) == False):
-            displayBoard(dupBoard)
+            displayBoard(dupBoard, arrOfChoices)
             ingame = ingameChoice()
 
             # If making a move
@@ -308,7 +343,7 @@ def main():
 
             # Save the current state of the game
             elif (ingame == 2):
-                saveGame(dupBoard, originalBoard)
+                saveGame(dupBoard, originalBoard, arrOfChoices)
 
             # Reveal the solution then go back to the main menu
             elif (ingame == 3):
